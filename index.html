@@ -1,266 +1,45 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zenith University - AI Enhanced Tour</title>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
-    <!-- Markdown Parser -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
-    <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #0f172a; font-family: 'Segoe UI', sans-serif; }
-        
-        /* The Frame that holds your Unity Build */
-        #game-frame {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            border: none;
-            z-index: 0;
-        }
-
-        /* UI Overlay Layer */
-        #ui-layer {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; /* Let clicks pass through to Unity */
-            z-index: 10;
-        }
-
-        /* Glassmorphism Panels */
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            pointer-events: auto; /* Re-enable clicks for UI elements */
-        }
-
-        /* Chat Animation */
-        @keyframes slideUp {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        .anim-entry { animation: slideUp 0.3s ease-out forwards; }
-        
-        /* Markdown Styles */
-        .ai-response p { margin-bottom: 0.5rem; line-height: 1.4; }
-        .ai-response strong { color: #818cf8; }
-    </style>
-</head>
-<body class="h-screen w-screen relative">
-
-    <!-- 1. THE IFRAME (Your Unity Build) -->
-    <!-- Make sure you renamed your original file to unity.html -->
-    <iframe id="game-frame" src="unity.html" allow="autoplay; fullscreen; vr" onerror="handleIframeError()"></iframe>
-
-    <!-- Error Message (Hidden by default) -->
-    <div id="iframe-error" class="hidden absolute inset-0 bg-slate-900 flex flex-col items-center justify-center z-0 text-white p-8 text-center">
-        <i class="fas fa-unlink text-6xl text-red-500 mb-4"></i>
-        <h2 class="text-2xl font-bold mb-2">Could not load Unity Build</h2>
-        <p class="text-gray-400 mb-6 max-w-md">
-            We tried to load <code>unity.html</code> but couldn't find it.
-        </p>
-        <div class="bg-black/30 p-4 rounded-lg text-left text-sm font-mono text-indigo-300 mb-6">
-            1. Rename your original <b>index.html</b> to <b>unity.html</b>.<br>
-            2. Ensure both files are in the same folder.<br>
-            3. Run this on a local web server.
-        </div>
-        <button onclick="location.reload()" class="bg-indigo-600 px-6 py-2 rounded-full hover:bg-indigo-500 transition">Try Again</button>
-    </div>
-
-    <!-- 2. UI OVERLAY LAYER -->
-    <div id="ui-layer" class="flex flex-col justify-between p-4">
-        
-        <!-- Header / Context Selector -->
-        <header class="flex justify-between items-start">
-            <!-- Branding -->
-            <div class="glass-panel px-4 py-2 rounded-full flex items-center gap-3 shadow-lg">
-                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                    <i class="fas fa-graduation-cap text-white text-sm"></i>
-                </div>
-                <div>
-                    <h1 class="text-white font-bold text-sm leading-none">Zenith University</h1>
-                    <span class="text-[10px] text-gray-400 uppercase tracking-widest">Interactive Tour</span>
-                </div>
-            </div>
-
-            <!-- Context Awareness (Since we can't easily detect Unity scene changes from outside) -->
-            <div class="glass-panel p-1 rounded-full flex items-center shadow-lg gap-2 pr-4">
-                <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-indigo-400">
-                    <i class="fas fa-map-marker-alt"></i>
-                </div>
-                <div class="flex flex-col">
-                    <span class="text-[9px] text-gray-400 uppercase font-bold">I am viewing:</span>
-                    <select id="location-context" class="bg-transparent text-white text-xs font-bold focus:outline-none cursor-pointer">
-                        <option value="Entrance">Entrance / Kitchen</option>
-                        <option value="Office">Office Space</option>
-                        <option value="Court">Main Hallway (Court)</option>
-                    </select>
-                </div>
-            </div>
-        </header>
-
-        <!-- Spacer -->
-        <div class="flex-grow"></div>
-
-        <!-- AI Chat Interface (Bottom Right) -->
-        <div class="self-end relative flex flex-col items-end gap-3">
-            
-            <!-- Chat Window -->
-            <div id="chat-window" class="hidden glass-panel w-80 h-96 rounded-2xl flex flex-col overflow-hidden shadow-2xl anim-entry origin-bottom-right">
-                <!-- Chat Header -->
-                <div class="bg-indigo-600 p-3 flex justify-between items-center">
-                    <div class="flex items-center gap-2 text-white">
-                        <i class="fas fa-robot"></i>
-                        <span class="font-bold text-sm">AI Tour Guide</span>
-                    </div>
-                    <button onclick="toggleChat()" class="text-white/70 hover:text-white transition">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <!-- Messages -->
-                <div id="chat-messages" class="flex-1 p-3 overflow-y-auto space-y-3 text-sm text-gray-100">
-                    <div class="bg-white/10 p-2 rounded-lg rounded-tl-none self-start max-w-[90%]">
-                        <p>Hi! I can tell you about the campus. Try selecting your location above and asking a question! 🎓</p>
-                    </div>
-                </div>
-
-                <!-- Input -->
-                <div class="p-3 bg-black/20 border-t border-white/10">
-                    <form onsubmit="handleChat(event)" class="relative">
-                        <input type="text" id="chat-input" class="w-full bg-black/40 border border-white/20 rounded-full py-2 pl-3 pr-10 text-xs text-white focus:outline-none focus:border-indigo-500 placeholder-gray-500" placeholder="Ask about this area...">
-                        <button type="submit" class="absolute right-1 top-1 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-500 text-white transition">
-                            <i class="fas fa-paper-plane text-xs"></i>
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <!-- FAB (Floating Action Button) -->
-            <button onclick="toggleChat()" class="glass-panel w-14 h-14 rounded-full flex items-center justify-center text-white hover:bg-indigo-600 transition-colors shadow-lg group relative border-white/20">
-                <i class="fas fa-comment-dots text-2xl group-hover:scale-110 transition-transform"></i>
-                <!-- Notification Dot -->
-                <span class="absolute top-0 right-0 flex h-3 w-3">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                </span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Logic -->
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Unity Web Player | 360 Tour</title>
+  </head>
+  <body style="text-align: center; padding: 0; border: 0; margin: 0;">
+    <canvas id="unity-canvas" width=1920 height=1080 tabindex="-1" style="width: 1920px; height: 1080px; background: #CCCCCC"></canvas>
+    <script src="Build/WebGL Builds.loader.js"></script>
     <script>
-        // --- 0. CONFIG ---
-        const apiKey = ""; // API Key will be injected
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        // Mobile device style: fill the whole browser client area with the game canvas:
+        var meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+        document.getElementsByTagName('head')[0].appendChild(meta);
 
-        // --- 1. IFRAME ERROR HANDLING ---
-        function handleIframeError() {
-            document.getElementById('game-frame').style.display = 'none';
-            document.getElementById('iframe-error').classList.remove('hidden');
-        }
+        var canvas = document.querySelector("#unity-canvas");
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.position = "fixed";
 
-        // Check if iframe loaded successfully (basic check)
-        const iframe = document.getElementById('game-frame');
-        iframe.onload = function() {
-            // If we access contentDocument successfully, it loaded.
-            // If cross-origin or 404, it might throw or be empty.
-            try {
-                const doc = iframe.contentDocument || iframe.contentWindow.document;
-                // If the title is empty or url is about:blank, it might have failed silently in some envs
-                console.log("Iframe loaded: " + doc.title);
-            } catch (e) {
-                console.log("Iframe load check restriction (likely CORS or file://): " + e);
-            }
-        };
+        document.body.style.textAlign = "left";
 
-        // --- 2. GEMINI AI ---
-        async function callGemini(prompt) {
-            if (!apiKey) return "Error: API Key is missing. I cannot think right now.";
-            
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+      }
 
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await response.json();
-                return data.candidates[0].content.parts[0].text;
-            } catch (error) {
-                console.error(error);
-                return "I'm having trouble connecting to the university server.";
-            }
-        }
-
-        // --- 3. CHAT UI ---
-        function toggleChat() {
-            const win = document.getElementById('chat-window');
-            win.classList.toggle('hidden');
-            if (!win.classList.contains('hidden')) document.getElementById('chat-input').focus();
-        }
-
-        async function handleChat(e) {
-            e.preventDefault();
-            const input = document.getElementById('chat-input');
-            const messages = document.getElementById('chat-messages');
-            const userText = input.value.trim();
-            const location = document.getElementById('location-context').value;
-
-            if (!userText) return;
-
-            // User Bubble
-            addMessage(userText, 'user');
-            input.value = '';
-
-            // Loading Bubble
-            const loadingId = addMessage('Thinking...', 'loading');
-
-            // Construct Prompt
-            const systemPrompt = `You are an enthusiastic student guide at Zenith University. 
-            The user is currently virtually visiting the "${location}".
-            Context for Entrance: It has a modern kitchen and common area.
-            Context for Office: High-tech workspace for students.
-            Context for Court: The main connecting hallway.
-            Keep answer short (under 50 words) and fun. Use emojis.
-            User asked: ${userText}`;
-
-            // Fetch
-            const reply = await callGemini(systemPrompt);
-
-            // Replace Loading with AI Reply
-            document.getElementById(loadingId).remove();
-            addMessage(reply, 'ai');
-        }
-
-        function addMessage(text, type) {
-            const div = document.createElement('div');
-            const id = 'msg-' + Date.now();
-            div.id = id;
-            
-            if (type === 'user') {
-                div.className = 'bg-indigo-600 text-white p-2 rounded-lg rounded-tr-none self-end max-w-[90%] text-sm shadow-md';
-                div.textContent = text;
-            } else if (type === 'loading') {
-                div.className = 'bg-white/10 text-gray-400 p-2 rounded-lg rounded-tl-none self-start text-xs italic';
-                div.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>' + text;
-            } else {
-                div.className = 'bg-slate-700/80 text-gray-100 p-2 rounded-lg rounded-tl-none self-start max-w-[90%] text-sm shadow-md ai-response border border-white/5';
-                div.innerHTML = marked.parse(text);
-            }
-
-            document.getElementById('chat-messages').appendChild(div);
-            document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
-            return id;
-        }
+      createUnityInstance(document.querySelector("#unity-canvas"), {
+        arguments: [],
+        dataUrl: "Build/WebGL Builds.data",
+        frameworkUrl: "Build/WebGL Builds.framework.js",
+        codeUrl: "Build/WebGL Builds.wasm",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "DefaultCompany",
+        productName: "360 Tour",
+        productVersion: "0.1.0",
+        // matchWebGLToCanvasSize: false, // Uncomment this to separately control WebGL canvas render size and DOM element size.
+        // devicePixelRatio: 1, // Uncomment this to override low DPI rendering on high DPI displays.
+      }).then((unityInstance) => {
+      }).catch((message) => {
+        alert(message);
+      });
     </script>
-</body>
+  </body>
 </html>
